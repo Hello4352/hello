@@ -321,7 +321,8 @@
         if(special === "enpassant") {
           boardCopy[nr][nc] = boardCopy[row][col];
           boardCopy[row][col] = '';
-          boardCopy[row][nc] = ''; // 잡힌 폰 제거
+          // 앙파상으로 잡힌 폰 제거
+          boardCopy[row][nc] = ''; 
         }
         // 캐슬링 처리
         else if(special === "castle") {
@@ -433,8 +434,9 @@
           btn.onclick = () => {
             boardState[row][col] = ch;
             promotionPending = null;
+            // 프로모션 이후 턴 넘김, 체크 판정
+            currentTurn = currentTurn === 'white' ? 'black' : 'white';
             renderBoard();
-            // 체크/체크메이트 판정
             if(isKingInCheck(boardState, currentTurn)) {
               if(isCheckmate(boardState, currentTurn)) {
                 alert((currentTurn === 'white' ? '백' : '흑') + ' 체크메이트! 게임 종료');
@@ -475,7 +477,9 @@
             if(special === "enpassant") {
               boardState[row][col] = movingPiece;
               boardState[selected[0]][selected[1]] = '';
+              // 앙파상으로 잡힌 폰 제거 (이동한 폰의 바로 이전 줄)
               boardState[selected[0]][col] = '';
+              enPassant = null;
             }
             // 캐슬링 처리
             else if(special === "castle") {
@@ -504,6 +508,7 @@
                 }
                 pieceMoved.k = true;
               }
+              enPassant = null;
             }
             // 일반 이동
             else {
@@ -511,9 +516,9 @@
               boardState[selected[0]][selected[1]] = '';
               // 폰이 두 칸 움직였으면 앙파상 가능 위치 기록
               if(movingPiece === "P" && selected[0] === 6 && row === 4) {
-                enPassant = {row:5, col:col};
+                enPassant = {row:4, col:col};
               } else if(movingPiece === "p" && selected[0] === 1 && row === 3) {
-                enPassant = {row:2, col:col};
+                enPassant = {row:3, col:col};
               } else {
                 enPassant = null;
               }
@@ -531,11 +536,6 @@
             }
 
             selected = null;
-            // 앙파상 한 턴만 유효
-            if(!(movingPiece === "P" && selected && selected[0] === 6 && row === 4)
-             && !(movingPiece === "p" && selected && selected[0] === 1 && row === 3)) {
-              if(!special || special !== "enpassant") enPassant = null;
-            }
 
             // 턴 넘김(프로모션 대기면 유지)
             if(!promotionPending) {
