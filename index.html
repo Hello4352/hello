@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>체스판 + 기물 + 엄격 이동 규칙</title>
+  <title>체스판 + 기물 + 엄격 이동 규칙 + 차례 관리</title>
   <style>
     #board {
       display: grid;
@@ -44,9 +44,10 @@
 </head>
 <body>
   <h1 style="text-align:center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-    체스판 + 기물 + 엄격 이동 규칙
+    체스판 + 기물 + 엄격 이동 규칙 + 차례 관리
   </h1>
 
+  <div id="turnIndicator" style="text-align:center; font-size:20px; margin-bottom:10px;"></div>
   <div id="board"></div>
 
   <script>
@@ -68,6 +69,7 @@
 
     const boardEl = document.getElementById("board");
     let selected = null;
+    let currentTurn = 'white'; // 백이 먼저 둠
 
     function isUpper(c) { return c === c.toUpperCase(); }
     function isLower(c) { return c === c.toLowerCase(); }
@@ -100,15 +102,12 @@
           let dir = isWhite ? -1 : 1;
           let startRow = isWhite ? 6 : 1;
 
-          // 한 칸 전진
           if(inBounds(row+dir,col) && board[row+dir][col] === '') {
             moves.push([row+dir,col]);
-            // 두 칸 전진
             if(row === startRow && board[row+2*dir][col] === '') {
               moves.push([row+2*dir,col]);
             }
           }
-          // 대각선 공격
           for(let dc of [-1,1]) {
             let nr = row+dir, nc = col+dc;
             if(inBounds(nr,nc) && isOpponent(piece, board[nr][nc])) {
@@ -188,6 +187,11 @@
       return moves;
     }
 
+    function renderTurn() {
+      const el = document.getElementById('turnIndicator');
+      el.textContent = currentTurn === 'white' ? "백 차례입니다." : "흑 차례입니다.";
+    }
+
     function renderBoard() {
       boardEl.innerHTML = "";
       for(let row=0; row<8; row++) {
@@ -214,13 +218,15 @@
           boardEl.appendChild(square);
         }
       }
+      renderTurn();
     }
 
     function onSquareClick(row, col) {
       const piece = boardState[row][col];
 
       if(selected === null) {
-        if(piece) {
+        // 현재 차례 기물만 선택 가능
+        if(piece && ((currentTurn === 'white' && isUpper(piece)) || (currentTurn === 'black' && isLower(piece)))) {
           selected = [row, col];
           renderBoard();
         }
@@ -236,9 +242,14 @@
           boardState[row][col] = boardState[selected[0]][selected[1]];
           boardState[selected[0]][selected[1]] = '';
           selected = null;
+
+          // 차례 변경
+          currentTurn = currentTurn === 'white' ? 'black' : 'white';
+
           renderBoard();
         } else {
-          if(piece) {
+          // 이동 불가 칸 클릭 시 같은 차례 기물 선택 변경 가능
+          if(piece && ((currentTurn === 'white' && isUpper(piece)) || (currentTurn === 'black' && isLower(piece)))) {
             selected = [row, col];
             renderBoard();
           }
