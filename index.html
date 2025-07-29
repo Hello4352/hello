@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>체스판 + 기물 + 클릭 이동</title>
+  <title>체스판 + 기물 + 엄격 이동 규칙</title>
   <style>
     #board {
       display: grid;
@@ -40,14 +40,11 @@
       outline: 3px solid #ff5722;
       outline-offset: -3px;
     }
-    .highlight {
-      background-color: #aaffaa !important;
-    }
   </style>
 </head>
 <body>
   <h1 style="text-align:center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-    체스판 + 기물 + 클릭 이동 기능
+    체스판 + 기물 + 엄격 이동 규칙
   </h1>
 
   <div id="board"></div>
@@ -58,7 +55,6 @@
       'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙'
     };
 
-    // 초기 기본 체스판 상태
     let boardState = [
       ['r','n','b','q','k','b','n','r'],
       ['p','p','p','p','p','p','p','p'],
@@ -71,12 +67,129 @@
     ];
 
     const boardEl = document.getElementById("board");
+    let selected = null;
 
-    let selected = null; // 선택된 칸 좌표 [row, col]
+    function isUpper(c) { return c === c.toUpperCase(); }
+    function isLower(c) { return c === c.toLowerCase(); }
+
+    function inBounds(r, c) {
+      return r >= 0 && r < 8 && c >= 0 && c < 8;
+    }
+
+    function isOpponent(piece1, piece2) {
+      if(!piece1 || !piece2) return false;
+      return (isUpper(piece1) && isLower(piece2)) || (isLower(piece1) && isUpper(piece2));
+    }
+
+    function getLegalMoves(row, col, board) {
+      const piece = board[row][col];
+      if (!piece) return [];
+
+      const moves = [];
+      const isWhite = isUpper(piece);
+
+      const directions = {
+        rook: [[1,0],[-1,0],[0,1],[0,-1]],
+        bishop: [[1,1],[1,-1],[-1,1],[-1,-1]],
+        knight: [[-2,1],[-2,-1],[-1,2],[-1,-2],[1,2],[1,-2],[2,1],[2,-1]],
+        king: [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+      };
+
+      switch(piece.toLowerCase()) {
+        case 'p':
+          let dir = isWhite ? -1 : 1;
+          let startRow = isWhite ? 6 : 1;
+
+          // 한 칸 전진
+          if(inBounds(row+dir,col) && board[row+dir][col] === '') {
+            moves.push([row+dir,col]);
+            // 두 칸 전진
+            if(row === startRow && board[row+2*dir][col] === '') {
+              moves.push([row+2*dir,col]);
+            }
+          }
+          // 대각선 공격
+          for(let dc of [-1,1]) {
+            let nr = row+dir, nc = col+dc;
+            if(inBounds(nr,nc) && isOpponent(piece, board[nr][nc])) {
+              moves.push([nr,nc]);
+            }
+          }
+          break;
+
+        case 'r':
+          for(let [dr, dc] of directions.rook) {
+            let nr = row + dr;
+            let nc = col + dc;
+            while(inBounds(nr,nc)) {
+              if(board[nr][nc] === '') {
+                moves.push([nr,nc]);
+              } else {
+                if(isOpponent(piece, board[nr][nc])) moves.push([nr,nc]);
+                break;
+              }
+              nr += dr; nc += dc;
+            }
+          }
+          break;
+
+        case 'n':
+          for(let [dr, dc] of directions.knight) {
+            let nr = row+dr, nc=col+dc;
+            if(inBounds(nr,nc) && (board[nr][nc] === '' || isOpponent(piece, board[nr][nc]))) {
+              moves.push([nr,nc]);
+            }
+          }
+          break;
+
+        case 'b':
+          for(let [dr, dc] of directions.bishop) {
+            let nr = row + dr;
+            let nc = col + dc;
+            while(inBounds(nr,nc)) {
+              if(board[nr][nc] === '') {
+                moves.push([nr,nc]);
+              } else {
+                if(isOpponent(piece, board[nr][nc])) moves.push([nr,nc]);
+                break;
+              }
+              nr += dr; nc += dc;
+            }
+          }
+          break;
+
+        case 'q':
+          for(let [dr, dc] of [...directions.rook, ...directions.bishop]) {
+            let nr = row + dr;
+            let nc = col + dc;
+            while(inBounds(nr,nc)) {
+              if(board[nr][nc] === '') {
+                moves.push([nr,nc]);
+              } else {
+                if(isOpponent(piece, board[nr][nc])) moves.push([nr,nc]);
+                break;
+              }
+              nr += dr; nc += dc;
+            }
+          }
+          break;
+
+        case 'k':
+          for(let [dr, dc] of directions.king) {
+            let nr = row+dr;
+            let nc = col+dc;
+            if(inBounds(nr,nc) && (board[nr][nc] === '' || isOpponent(piece, board[nr][nc]))) {
+              moves.push([nr,nc]);
+            }
+          }
+          break;
+      }
+
+      return moves;
+    }
 
     function renderBoard() {
       boardEl.innerHTML = "";
-
       for(let row=0; row<8; row++) {
         for(let col=0; col<8; col++) {
           const square = document.createElement("div");
@@ -84,20 +197,16 @@
           if ((row + col) % 2 === 0) square.classList.add("white");
           else square.classList.add("black");
 
-          // 좌표 저장
-          square.dataset.row = row;
-          square.dataset.col = col;
-
-          // 기물 표시
           const piece = boardState[row][col];
           if(piece) square.textContent = PIECES[piece];
 
-          // 선택된 칸 표시
           if(selected && selected[0] === row && selected[1] === col) {
             square.classList.add("selected");
           }
 
-          // 클릭 이벤트
+          square.dataset.row = row;
+          square.dataset.col = col;
+
           square.addEventListener("click", () => {
             onSquareClick(row, col);
           });
@@ -107,37 +216,28 @@
       }
     }
 
-    // 클릭했을 때 처리
     function onSquareClick(row, col) {
       const piece = boardState[row][col];
 
       if(selected === null) {
-        // 기물이 있는 칸만 선택 가능
         if(piece) {
           selected = [row, col];
           renderBoard();
         }
       } else {
-        // 선택된 칸이 있을 때
         if(row === selected[0] && col === selected[1]) {
-          // 같은 칸 다시 클릭하면 선택 해제
           selected = null;
           renderBoard();
           return;
         }
 
-        // 선택된 칸에서 움직이기: 아주 간단한 룰 없이 그냥 빈칸 혹은 상대기물이면 이동 허용
-        const selectedPiece = boardState[selected[0]][selected[1]];
-        const targetPiece = boardState[row][col];
-
-        if(!targetPiece || isOpponent(selectedPiece, targetPiece)) {
-          // 이동 수행
-          boardState[row][col] = selectedPiece;
+        const legalMoves = getLegalMoves(selected[0], selected[1], boardState);
+        if(legalMoves.some(([r,c]) => r === row && c === col)) {
+          boardState[row][col] = boardState[selected[0]][selected[1]];
           boardState[selected[0]][selected[1]] = '';
           selected = null;
           renderBoard();
         } else {
-          // 아군 기물이면 선택 칸 변경
           if(piece) {
             selected = [row, col];
             renderBoard();
@@ -145,14 +245,6 @@
         }
       }
     }
-
-    // 상대편 기물인지 확인 (대문자-백, 소문자-흑 기준)
-    function isOpponent(piece1, piece2) {
-      if(!piece1 || !piece2) return false;
-      return (isUpper(piece1) && isLower(piece2)) || (isLower(piece1) && isUpper(piece2));
-    }
-    function isUpper(c) { return c === c.toUpperCase(); }
-    function isLower(c) { return c === c.toLowerCase(); }
 
     renderBoard();
   </script>
