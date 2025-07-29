@@ -69,13 +69,7 @@
 
     const boardEl = document.getElementById("board");
     let selected = null;
-    let currentTurn = 'white';
-
-    let lastMove = null;
-    let castlingRights = {
-      white: { K: true, Q: true },
-      black: { K: true, Q: true }
-    };
+    let currentTurn = 'white'; // 백이 먼저 둠
 
     function isUpper(c) { return c === c.toUpperCase(); }
     function isLower(c) { return c === c.toLowerCase(); }
@@ -118,17 +112,6 @@
             let nr = row+dir, nc = col+dc;
             if(inBounds(nr,nc) && isOpponent(piece, board[nr][nc])) {
               moves.push([nr,nc]);
-            }
-          }
-          if (lastMove) {
-            const [fromRow, fromCol, toRow, toCol, movedPiece] = lastMove;
-            if (movedPiece.toLowerCase() === 'p' &&
-                Math.abs(fromRow - toRow) === 2 &&
-                toRow === row &&
-                Math.abs(toCol - col) === 1 &&
-                board[row][toCol] === movedPiece &&
-                board[row + dir][toCol] === '') {
-              moves.push([row + dir, toCol]);
             }
           }
           break;
@@ -196,22 +179,6 @@
             let nc = col+dc;
             if(inBounds(nr,nc) && (board[nr][nc] === '' || isOpponent(piece, board[nr][nc]))) {
               moves.push([nr,nc]);
-            }
-          }
-          if (!isKingInCheck(board, isWhite ? 'white' : 'black')) {
-            const rank = isWhite ? 7 : 0;
-            const rights = isWhite ? castlingRights.white : castlingRights.black;
-            if (rights.K &&
-                board[rank][5] === '' && board[rank][6] === '' &&
-                !isSquareAttacked(board, rank, 5, isWhite ? 'black' : 'white') &&
-                !isSquareAttacked(board, rank, 6, isWhite ? 'black' : 'white')) {
-              moves.push([rank, 6]);
-            }
-            if (rights.Q &&
-                board[rank][1] === '' && board[rank][2] === '' && board[rank][3] === '' &&
-                !isSquareAttacked(board, rank, 2, isWhite ? 'black' : 'white') &&
-                !isSquareAttacked(board, rank, 3, isWhite ? 'black' : 'white')) {
-              moves.push([rank, 2]);
             }
           }
           break;
@@ -339,34 +306,8 @@
 
         const legalMoves = getLegalMovesWithCheck(selected[0], selected[1], boardState);
         if(legalMoves.some(([r,c]) => r === row && c === col)) {
-          const fromRow = selected[0], fromCol = selected[1];
-          const toRow = row, toCol = col;
-          const movingPiece = boardState[fromRow][fromCol];
-          const target = boardState[toRow][toCol];
-
-          if (movingPiece.toLowerCase() === 'p' && toCol !== fromCol && target === '') {
-            boardState[fromRow][toCol] = '';
-          }
-
-          if (movingPiece.toLowerCase() === 'k' && Math.abs(toCol - fromCol) === 2) {
-            const rookFromCol = toCol === 6 ? 7 : 0;
-            const rookToCol = toCol === 6 ? 5 : 3;
-            boardState[toRow][rookToCol] = boardState[toRow][rookFromCol];
-            boardState[toRow][rookFromCol] = '';
-          }
-
-          if (movingPiece === 'K') castlingRights.white = { K: false, Q: false };
-          if (movingPiece === 'k') castlingRights.black = { K: false, Q: false };
-          if (movingPiece === 'R' && fromRow === 7 && fromCol === 0) castlingRights.white.Q = false;
-          if (movingPiece === 'R' && fromRow === 7 && fromCol === 7) castlingRights.white.K = false;
-          if (movingPiece === 'r' && fromRow === 0 && fromCol === 0) castlingRights.black.Q = false;
-          if (movingPiece === 'r' && fromRow === 0 && fromCol === 7) castlingRights.black.K = false;
-
-          boardState[toRow][toCol] = movingPiece;
-          boardState[fromRow][fromCol] = '';
-
-          lastMove = [fromRow, fromCol, toRow, toCol, movingPiece];
-
+          boardState[row][col] = boardState[selected[0]][selected[1]];
+          boardState[selected[0]][selected[1]] = '';
           selected = null;
 
           currentTurn = currentTurn === 'white' ? 'black' : 'white';
@@ -388,8 +329,151 @@
         }
       }
     }
+let lastMove = null;
+let castlingRights = {
+  white: { K: true, Q: true },
+  black: { K: true, Q: true }
+};
 
-    renderBoard();
+function getLegalMoves(row, col, board) {
+  const piece = board[row][col];
+  if (!piece) return [];
+
+  const moves = [];
+  const isWhite = isUpper(piece);
+  const directions = {
+    rook: [[1,0],[-1,0],[0,1],[0,-1]],
+    bishop: [[1,1],[1,-1],[-1,1],[-1,-1]],
+    knight: [[-2,1],[-2,-1],[-1,2],[-1,-2],[1,2],[1,-2],[2,1],[2,-1]],
+    king: [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+  };
+
+  switch(piece.toLowerCase()) {
+    case 'p':
+      let dir = isWhite ? -1 : 1;
+      let startRow = isWhite ? 6 : 1;
+
+      if(inBounds(row+dir,col) && board[row+dir][col] === '') {
+        moves.push([row+dir,col]);
+        if(row === startRow && board[row+2*dir][col] === '') {
+          moves.push([row+2*dir,col]);
+        }
+      }
+      for(let dc of [-1,1]) {
+        let nr = row+dir, nc = col+dc;
+        if(inBounds(nr,nc) && isOpponent(piece, board[nr][nc])) {
+          moves.push([nr,nc]);
+        }
+      }
+      if (lastMove) {
+        const [fromRow, fromCol, toRow, toCol, movedPiece] = lastMove;
+        if (movedPiece.toLowerCase() === 'p' &&
+            Math.abs(fromRow - toRow) === 2 &&
+            toRow === row &&
+            Math.abs(toCol - col) === 1 &&
+            board[row][toCol] === movedPiece &&
+            board[row + dir][toCol] === '') {
+          moves.push([row + dir, toCol]);
+        }
+      }
+      break;
+
+    case 'k':
+      for(let [dr, dc] of directions.king) {
+        let nr = row+dr;
+        let nc = col+dc;
+        if(inBounds(nr,nc) && (board[nr][nc] === '' || isOpponent(piece, board[nr][nc]))) {
+          moves.push([nr,nc]);
+        }
+      }
+      if (!isKingInCheck(board, isWhite ? 'white' : 'black')) {
+        const rank = isWhite ? 7 : 0;
+        const rights = isWhite ? castlingRights.white : castlingRights.black;
+        if (rights.K &&
+            board[rank][5] === '' && board[rank][6] === '' &&
+            !isSquareAttacked(board, rank, 5, isWhite ? 'black' : 'white') &&
+            !isSquareAttacked(board, rank, 6, isWhite ? 'black' : 'white')) {
+          moves.push([rank, 6]);
+        }
+        if (rights.Q &&
+            board[rank][1] === '' && board[rank][2] === '' && board[rank][3] === '' &&
+            !isSquareAttacked(board, rank, 2, isWhite ? 'black' : 'white') &&
+            !isSquareAttacked(board, rank, 3, isWhite ? 'black' : 'white')) {
+          moves.push([rank, 2]);
+        }
+      }
+      break;
+  }
+
+  return moves;
+}
+
+function onSquareClick(row, col) {
+  const piece = boardState[row][col];
+
+  if(selected === null) {
+    if(piece && ((currentTurn === 'white' && isUpper(piece)) || (currentTurn === 'black' && isLower(piece)))) {
+      selected = [row, col];
+      renderBoard();
+    }
+  } else {
+    if(row === selected[0] && col === selected[1]) {
+      selected = null;
+      renderBoard();
+      return;
+    }
+
+    const legalMoves = getLegalMovesWithCheck(selected[0], selected[1], boardState);
+    if(legalMoves.some(([r,c]) => r === row && c === col)) {
+      const fromRow = selected[0], fromCol = selected[1];
+      const toRow = row, toCol = col;
+      const movingPiece = boardState[fromRow][fromCol];
+      const target = boardState[toRow][toCol];
+
+      if (movingPiece.toLowerCase() === 'p' && toCol !== fromCol && target === '') {
+        boardState[fromRow][toCol] = '';
+      }
+
+      if (movingPiece.toLowerCase() === 'k' && Math.abs(toCol - fromCol) === 2) {
+        const rookFromCol = toCol === 6 ? 7 : 0;
+        const rookToCol = toCol === 6 ? 5 : 3;
+        boardState[toRow][rookToCol] = boardState[toRow][rookFromCol];
+        boardState[toRow][rookFromCol] = '';
+      }
+
+      if (movingPiece === 'K') castlingRights.white = { K: false, Q: false };
+      if (movingPiece === 'k') castlingRights.black = { K: false, Q: false };
+      if (movingPiece === 'R' && fromRow === 7 && fromCol === 0) castlingRights.white.Q = false;
+      if (movingPiece === 'R' && fromRow === 7 && fromCol === 7) castlingRights.white.K = false;
+      if (movingPiece === 'r' && fromRow === 0 && fromCol === 0) castlingRights.black.Q = false;
+      if (movingPiece === 'r' && fromRow === 0 && fromCol === 7) castlingRights.black.K = false;
+
+      boardState[toRow][toCol] = movingPiece;
+      boardState[fromRow][fromCol] = '';
+
+      lastMove = [fromRow, fromCol, toRow, toCol, movingPiece];
+
+      selected = null;
+
+      currentTurn = currentTurn === 'white' ? 'black' : 'white';
+
+      renderBoard();
+
+      if(isKingInCheck(boardState, currentTurn)) {
+        if(isCheckmate(boardState, currentTurn)) {
+          alert((currentTurn === 'white' ? '백' : '흑') + ' 체크메이트! 게임 종료');
+        } else {
+          alert((currentTurn === 'white' ? '백' : '흑') + ' 체크입니다!');
+        }
+      }
+    } else {
+      if(piece && ((currentTurn === 'white' && isUpper(piece)) || (currentTurn === 'black' && isLower(piece)))) {
+        selected = [row, col];
+        renderBoard();
+      } 
+    }
+  }
+}
   </script>
 </body>
 </html>
