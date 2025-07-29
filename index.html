@@ -336,6 +336,196 @@
     }
 
     renderBoard();
-  </script>
+    <!-- (기존 코드에서 아무것도 삭제하지 않고, 아래 코드만 추가하세요) -->
+
+<script>
+  // 폰 프로모션을 처리하는 함수
+  function handlePawnPromotion(row, col, piece) {
+    const isWhite = isUpper(piece);
+    const promotionOptions = isWhite ? ['Q', 'R', 'B', 'N'] : ['q', 'r', 'b', 'n'];
+
+    let choice = prompt("폰이 도착했습니다! 승격할 기물을 선택하세요 (Q, R, B, N):", "Q");
+    if (choice) {
+      choice = choice.toUpperCase();
+      if (!promotionOptions.includes(isWhite ? choice : choice.toLowerCase())) {
+        alert("잘못된 선택입니다. 퀸(Q), 룩(R), 비숍(B), 나이트(N) 중 하나를 선택하세요.");
+        return handlePawnPromotion(row, col, piece); // 다시 입력
+      }
+
+      boardState[row][col] = isWhite ? choice : choice.toLowerCase();
+    }
+  }
+
+  // 기존 onSquareClick 함수 내부에서
+  // 이동 직후 `프로모션 처리`만 조건에 따라 삽입합니다
+  const originalOnSquareClick = onSquareClick;
+  onSquareClick = function(row, col) {
+    const piece = boardState[row][col];
+
+    if (selected === null) {
+      if (piece && ((currentTurn === 'white' && isUpper(piece)) || (currentTurn === 'black' && isLower(piece)))) {
+        selected = [row, col];
+        renderBoard();
+      }
+    } else {
+      if (row === selected[0] && col === selected[1]) {
+        selected = null;
+        renderBoard();
+        return;
+      }
+
+      const legalMoves = getLegalMovesWithCheck(selected[0], selected[1], boardState);
+      if (legalMoves.some(([r, c]) => r === row && c === col)) {
+        const movingPiece = boardState[selected[0]][selected[1]];
+        boardState[row][col] = movingPiece;
+        boardState[selected[0]][selected[1]] = '';
+        
+        //  폰 프로모션 조건 확인
+        if ((movingPiece === 'P' && row === 0) || (movingPiece === 'p' && row === 7)) {
+          handlePawnPromotion(row, col, movingPiece);
+        }
+
+        selected = null;
+        currentTurn = currentTurn === 'white' ? 'black' : 'white';
+        renderBoard();
+
+        if (isKingInCheck(boardState, currentTurn)) {
+          if (isCheckmate(boardState, currentTurn)) {
+            alert((currentTurn === 'white' ? '백' : '흑') + ' 체크메이트! 게임 종료');
+          } else {
+            alert((currentTurn === 'white' ? '백' : '흑') + ' 체크입니다!');
+          }
+        }
+      } else {
+        if (piece && ((currentTurn === 'white' && isUpper(piece)) || (currentTurn === 'black' && isLower(piece)))) {
+          selected = [row, col];
+          renderBoard();
+        }
+      }
+    }
+  }
+<script>
+let castlingRights = {
+  white: { kingside: true, queenside: true },
+  black: { kingside: true, queenside: true }
+};
+
+let enPassantTarget = null; // ex) [3, 4]
+
+// 기존 getLegalMoves 함수 내에 다음 조건을 추가하세요
+function getLegalMoves(row, col, board) {
+  const piece = board[row][col];
+  const isWhite = isUpper(piece);
+  const moves = [];
+
+  // (기존 이동 로직)
+
+  // --- 캐슬링 로직 ---
+  if (piece.toLowerCase() === 'k') {
+    const side = isWhite ? 'white' : 'black';
+    const homeRow = isWhite ? 7 : 0;
+
+    if (!isKingInCheck(board, side)) {
+      // 킹사이드
+      if (castlingRights[side].kingside &&
+          board[homeRow][5] === '' &&
+          board[homeRow][6] === '' &&
+          !isSquareAttacked(homeRow, 5, side) &&
+          !isSquareAttacked(homeRow, 6, side) &&
+          board[homeRow][7].toLowerCase() === 'r') {
+        moves.push([homeRow, 6]);
+      }
+      // 퀸사이드
+      if (castlingRights[side].queenside &&
+          board[homeRow][1] === '' &&
+          board[homeRow][2] === '' &&
+          board[homeRow][3] === '' &&
+          !isSquareAttacked(homeRow, 2, side) &&
+          !isSquareAttacked(homeRow, 3, side) &&
+          board[homeRow][0].toLowerCase() === 'r') {
+        moves.push([homeRow, 2]);
+      }
+    }
+  }
+
+  // --- 앙파상 로직 ---
+  if (piece.toLowerCase() === 'p') {
+    const dir = isWhite ? -1 : 1;
+    if (enPassantTarget &&
+        enPassantTarget[0] === row + dir &&
+        Math.abs(enPassantTarget[1] - col) === 1) {
+      moves.push([...enPassantTarget]);
+    }
+  }
+
+  return moves;
+}
+
+// --- 보조 함수: isSquareAttacked ---
+function isSquareAttacked(row, col, side) {
+  const opponent = side === 'white' ? 'black' : 'white';
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = boardState[r][c];
+      if (!piece) continue;
+      if ((opponent === 'white' && isUpper(piece)) || (opponent === 'black' && isLower(piece))) {
+        const moves = getLegalMoves(r, c, boardState);
+        if (moves.some(([mr, mc]) => mr === row && mc === col)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// --- onSquareClick에서 이동 처리 이후 상태 업데이트 ---
+function handleMove(row, col) {
+  const movingPiece = boardState[selected[0]][selected[1]];
+  const targetPiece = boardState[row][col];
+
+  // --- 캐슬링 시 룩도 이동 ---
+  if (movingPiece.toLowerCase() === 'k' && Math.abs(col - selected[1]) === 2) {
+    const rowIdx = selected[0];
+    if (col === 6) { // 킹사이드
+      boardState[rowIdx][5] = boardState[rowIdx][7];
+      boardState[rowIdx][7] = '';
+    } else if (col === 2) { // 퀸사이드
+      boardState[rowIdx][3] = boardState[rowIdx][0];
+      boardState[rowIdx][0] = '';
+    }
+  }
+
+  // --- 캐슬링 권리 제거 ---
+  if (movingPiece === 'K') {
+    castlingRights.white.kingside = false;
+    castlingRights.white.queenside = false;
+  } else if (movingPiece === 'k') {
+    castlingRights.black.kingside = false;
+    castlingRights.black.queenside = false;
+  } else if (movingPiece === 'R') {
+    if (selected[0] === 7 && selected[1] === 0) castlingRights.white.queenside = false;
+    if (selected[0] === 7 && selected[1] === 7) castlingRights.white.kingside = false;
+  } else if (movingPiece === 'r') {
+    if (selected[0] === 0 && selected[1] === 0) castlingRights.black.queenside = false;
+    if (selected[0] === 0 && selected[1] === 7) castlingRights.black.kingside = false;
+  }
+
+  // --- en passant 타겟 설정 ---
+  if (movingPiece.toLowerCase() === 'p' && Math.abs(row - selected[0]) === 2) {
+    enPassantTarget = [(row + selected[0]) / 2, col];
+  } else {
+    enPassantTarget = null;
+  }
+
+  // --- 앙파상 캡처 처리 ---
+  if (movingPiece.toLowerCase() === 'p' &&
+      col !== selected[1] &&
+      targetPiece === '') {
+    const dir = isUpper(movingPiece) ? 1 : -1;
+    boardState[row + dir][col] = '';
+  }
+}
+</script>
 </body>
 </html>
