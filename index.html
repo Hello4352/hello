@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>체스판 + 기물 + 엄격 이동 규칙 + 차례 관리 + 체크/체크메이트 + 앙파상 + 프로모션 + 캐슬링</title>
+  <title>체스판 + 기물 + 엄격 이동 규칙 + 차례 관리 + 체크/체크메이트 + 앙파상 + 프로모션 + 캐슬링 + 하이라이트</title>
   <style>
     #board {
       display: grid;
@@ -53,11 +53,14 @@
       background: #f0d9b5;
       display: inline-block;
     }
+    .highlight {
+      box-shadow: 0 0 0 6px #ffeb3b inset;
+    }
   </style>
 </head>
 <body>
   <h1 style="text-align:center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-    체스판 + 기물 + 엄격 이동 규칙 + 차례 관리 + 체크/체크메이트 + 앙파상 + 프로모션 + 캐슬링
+    체스판 + 기물 + 엄격 이동 규칙 + 차례 관리 + 체크/체크메이트 + 앙파상 + 프로모션 + 캐슬링 + 하이라이트
   </h1>
 
   <div id="turnIndicator" style="text-align:center; font-size:20px; margin-bottom:10px;"></div>
@@ -96,6 +99,9 @@
 
     // 프로모션 대기 중 상태
     let promotionPending = null; // {row, col, color}
+
+    // 하이라이트용 legalMoves 캐시
+    let highlightSquares = [];
 
     function isUpper(c) { return c === c.toUpperCase(); }
     function isLower(c) { return c === c.toLowerCase(); }
@@ -321,7 +327,6 @@
         if(special === "enpassant") {
           boardCopy[nr][nc] = boardCopy[row][col];
           boardCopy[row][col] = '';
-          // 앙파상으로 잡힌 폰 제거
           boardCopy[row][nc] = ''; 
         }
         // 캐슬링 처리
@@ -380,6 +385,12 @@
 
     function renderBoard() {
       boardEl.innerHTML = "";
+      // 하이라이트 칸 계산
+      let highlights = [];
+      if(selected) {
+        highlights = getLegalMovesWithCheck(selected[0], selected[1], boardState).map(m => [m[0], m[1]]);
+      }
+      highlightSquares = highlights;
       for(let row=0; row<8; row++) {
         for(let col=0; col<8; col++) {
           const square = document.createElement("div");
@@ -401,6 +412,10 @@
               if(m[0] === row && m[1] === col && m[2] === "castle")
                 square.classList.add("castle");
             }
+          }
+          // 하이라이트 표시
+          if(highlightSquares.some(([r, c]) => r === row && c === col)) {
+            square.classList.add("highlight");
           }
 
           square.dataset.row = row;
@@ -434,7 +449,6 @@
           btn.onclick = () => {
             boardState[row][col] = ch;
             promotionPending = null;
-            // 프로모션 이후 턴 넘김, 체크 판정
             currentTurn = currentTurn === 'white' ? 'black' : 'white';
             renderBoard();
             if(isKingInCheck(boardState, currentTurn)) {
@@ -477,7 +491,6 @@
             if(special === "enpassant") {
               boardState[row][col] = movingPiece;
               boardState[selected[0]][selected[1]] = '';
-              // 앙파상으로 잡힌 폰 제거 (이동한 폰의 바로 이전 줄)
               boardState[selected[0]][col] = '';
               enPassant = null;
             }
